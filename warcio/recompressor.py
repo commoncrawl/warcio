@@ -57,12 +57,16 @@ class Recompressor(object):
         with open(output, 'wb') as out:
             writer = WARCWriter(filebuf=out, gzip=True)
 
-            for record in ArchiveIterator(stream,
+            archive_iterator = ArchiveIterator(stream,
                                           no_record_parse=False,
                                           arc2warc=True,
-                                          verify_http=False):
+                                          verify_http=False)
+            for record in archive_iterator:
 
                 writer.write_record(record)
+                print('original record length: {:7d} bytes, {}\n'.format(
+                    archive_iterator.get_record_length(),
+                    record.rec_headers.get_header('WARC-Target-URI')))
                 count += 1
 
             return count

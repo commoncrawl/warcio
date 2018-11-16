@@ -41,7 +41,7 @@ class BaseWARCWriter(RecordBuilder):
 
     def _write_warc_record(self, out, record):
         if self.gzip:
-            out = GzippingWrapper(out)
+            out = ZopfliGzippingWrapper(out)
 
         if record.http_headers:
             record.http_headers.compute_headers_buffer(self.header_filter)
@@ -127,6 +127,31 @@ class GzippingWrapper(object):
         self.out.write(buff)
         self.out.flush()
 
+
+# ============================================================================
+import zopfli.gzip
+import time
+from io import BytesIO
+class ZopfliGzippingWrapper(GzippingWrapper):
+    def __init__(self, out):
+        self.compressor = zopfli.gzip
+        self.buff = BytesIO()
+        self.out = out
+
+    def write(self, buff):
+        self.buff.write(buff)
+
+    def flush(self):
+        buff = self.buff.getvalue()
+        length = len(buff)
+        start = time.time()
+        buff = self.compressor.compress(buff)
+        elapsed = time.time() - start
+        print('  zopfli record length: {:7d} bytes, compressed in {:.3f} seconds'.format(
+            len(buff), elapsed))
+        print('  uncompr. rec. length: {:7d} bytes'.format(length))
+        self.out.write(buff)
+        self.out.flush()
 
 # ============================================================================
 class WARCWriter(BaseWARCWriter):
