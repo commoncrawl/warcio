@@ -170,6 +170,16 @@ class ArchiveIterator(six.Iterator):
 
             return line, empty_size
 
+    @staticmethod
+    def escape_string(s):
+        return ''.join(ArchiveIterator.escape_non_printable_char(c) for c in six.iterbytes(s))
+
+    @staticmethod
+    def escape_non_printable_char(c):
+        if c <= 0x7F:
+            return chr(c).encode('unicode_escape').decode('ascii')
+        return r'\x{0:02x}'.format(c)
+
     def read_to_end(self, record=None):
         """ Read remainder of the stream
         If a digester is included, update it
@@ -190,6 +200,33 @@ class ArchiveIterator(six.Iterator):
             b = self.record.raw_stream.read(BUFF_SIZE)
             if not b:
                 break
+
+        ### read remaining input from underlying decompression stream
+        last_buff = None
+        while True:
+            buff = self.reader.readline()
+            if not buff:
+                break
+            if last_buff and len(last_buff):
+                sys.stderr.write("Adding remaining content from stream: {}\n".format(
+                    ArchiveIterator.escape_string(last_buff)))
+            last_buff = buff
+        trailing_newline = False
+        if last_buff is not None:
+            if len(last_buff) == 1 and six.indexbytes(last_buff, 0) == 0x0A:
+                # Ok, a single trailing '\n' is expected
+                # sys.stderr.write("Stripped trailing \\n\t({})\n".format(
+                #     self.record.rec_headers.get_header('uri')))
+                trailing_newline = True
+            elif len(last_buff) > 1 and six.indexbytes(last_buff, -1) == 0xA0:
+                sys.stderr.write("Adding remaining content from stream (stripped trailing \\n): {}\n".format(
+                    ArchiveIterator.escape_string(last_buff[:-1])))
+                trailing_newline = True
+            elif len(last_buff) > 0:
+                sys.stderr.write("Adding remaining content from stream (without trailing \\n): {}\n".format(
+                    ArchiveIterator.escape_string(last_buff)))
+                if not trailing_newline:
+                    sys.stderr.write("No trailing \\n found\n")
 
         """
         - For compressed files, blank lines are consumed
