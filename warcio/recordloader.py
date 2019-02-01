@@ -1,3 +1,5 @@
+import sys
+
 from warcio.statusandheaders import StatusAndHeaders
 from warcio.statusandheaders import StatusAndHeadersParser
 from warcio.statusandheaders import StatusAndHeadersParserException
@@ -307,9 +309,25 @@ class ARCHeadersParser(object):
         parts = headerline.rsplit(' ', len(headernames)-1)
 
         if len(parts) != len(headernames):
-            msg = 'Wrong # of headers, expected arc headers {0}, Found {1}'
-            msg = msg.format(headernames, parts)
-            raise StatusAndHeadersParserException(msg, parts)
+            if len(parts) > len(headernames):
+                sys.stderr.write('Wrong # of headers (assuming white space in URL): ' + headerline + '\n')
+                url = parts[0]
+                sep = '%20'
+                if '?' in url:
+                    sep = '+'
+                for i in range(1, (len(parts) - len(headernames) + 1)):
+                    url += sep + parts[i]
+                    if '?' in parts[i]:
+                        sep = '+'
+                fixed_parts = [url]
+                for i in range((len(parts) - len(headernames) + 1), len(parts)):
+                    fixed_parts.append(parts[i])
+                sys.stderr.write('Fixed headers (replaced white space in URL): {}\n'.format(' '.join(fixed_parts)))
+                parts = fixed_parts
+            else:
+                msg = 'Wrong # of headers, expected arc headers {0}, Found {1}'
+                msg = msg.format(headernames, parts)
+                raise StatusAndHeadersParserException(msg, parts)
 
 
         protocol, headers = self._get_protocol_and_headers(headerline, parts)
